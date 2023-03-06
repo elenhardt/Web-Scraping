@@ -4,12 +4,21 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+from bs4 import BeautifulSoup
+import soupsieve as sv
+
 import pandas as pd
 import numpy as np 
-import time
 
 
 
+
+#Items to add:
+#Reorganize classes, figure out what to do with Chrome_Browser() class
+#Create class/methods to parse through and create comments.
+#Change all implicit waits to expected conditions
+#Find more efficient way to get post comment URL's
 
 
 
@@ -28,94 +37,127 @@ class Chrome_Browser():
     
     def get_URL(self):
         return self.driver.current_url
-           
+    
+    def get_page_HTML(self):
+        self.HTML = self.driver.page_source
+    
+    def get_webelement_HTML(self, webelement):
+        webelementHTML = webelement.get_attribute('innerHTML')
+        return webelementHTML        
+    
     def tear_down(self): #discards driver
         self.driver.quit()
         
-class Reddit():            
-
-    def initialize(self):
-        self.driver = webdriver.Chrome() 
-        self.driver.get('https://old.reddit.com/r/popular/')
+class Reddit(Chrome_Browser):
     
+    def login(self, username , password): #takes a reddit account username or password
+        
+        self.driver.get("https://www.reddit.com/login/?dest=https%3A%2F%2Fwww.reddit.com%2F") #gets log in page
+        WebDriverWait(self.driver, 10).until(EC.title_contains('reddit.com'))
+        WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.NAME, "username"))) #Checks for username
+        
+        element = self.driver.find_element(By.NAME, "username")
+        element.send_keys(username) #sends username
+        
+        element = self.driver.find_element(By.NAME, "password")
+        element.send_keys(password)
+        
+        element = self.driver.find_element(By.TAG_NAME, "button").click()
+        WebDriverWait(self.driver, 10) #just waits to ensure smooth runtime  
+                             
     def click_next_page(self): #clicks the next page button on reddit
         element = self.driver.find_element(By.CSS_SELECTOR, "a[rel$='next']")
         element.click()
         self.driver.implicitly_wait(2)
         
-    def get_pages(self, times): #gets this many pages worth of posts
-        self.pages = []
 
-        for i in range(times):
-            posts = self.get_posts() #gets post from page
-            for post in posts:
-                tempPost = Reddit_Post()
-                self.pages.append(tempPost.init_post(post, self.driver))
-            
-            self.click_next_page()
                 
+
+        
+
+    
+
+    # def get_comments(self, commentssection):
+    #     comments = commentssection.find_elements(By.CSS_SELECTOR, "div[id^='thing']") 
+    #     return comments #returns list of comments
+        
+class Reddit_Scraper(): 
+    
+    def initialize(self):
+        self.browser = Reddit()
+        self.browser.initialize()
+        
+    def goto_subreddit(self, subreddit):
+        self.browser.goto_site('https://old.reddit.com/r/' + subreddit + '/')
+        
     def get_posts(self): #finds all posts on current page
-        self.posts = self.driver.find_elements(By.CSS_SELECTOR, "div[class*='even  link']")
-        self.posts1 = self.driver.find_elements(By.CSS_SELECTOR, "div[class*='odd  link']")
-        posts = self.posts + self.posts1
-        return posts
- 
+        self.posts2 = self.browser.driver.find_elements(By.CSS_SELECTOR, "div[class*='even  link']")
+        self.posts1 = self.browser.driver.find_elements(By.CSS_SELECTOR, "div[class*='odd  link']")
+        self.posts = self.posts2 + self.posts1
+    
+    def create_HTML_list(self):
+        self.HTMLlist = []
+        for post in self.posts:
+            self.HTMLlist.append(self.browser.get_webelement_HTML(post))
+  
+     
+    def get_pages(self, times): #gets this many pages worth of posts
+        returnlist = []
+        for i in range(times):
+            self.get_posts()
+            returnlist.append(self.create_HTML_list())
+            self.browser.click_next_page()
         
-
+    def initialize_posts_list(self):
+        self.postslist = []
+        self.parser = Reddit_Post()
+        
+    def fill_posts_list(self):
+        for post in self.HTMLlist:
+            self.parser.initialize(post)
+            self.postslist.append(self.parser.create_post_dictionary())
+        
     
 
-class Reddit_Post(): 
+class Pandas_DataFrame():
     
-    def init_post(self, item, driver): #initializes a post object with all post information
-        self.driver = driver        
-        title = self.get_title(item)
-        score = self.get_upvotes(item)
-        subreddit = self.get_subreddit(item)
-        posttime = self.get_post_time(item)
-        poster = self.get_OP(item)
-        comments = self.get_comment_number(item)
-        commentsURL = self.get_comments_URL(item)
+    def initialize(self,posts):
+        self.dataFrame = pd.DataFrame(posts)
         
-        self.driver.back()
-        
-        returnDict = {"score":score, "title":title, "subreddit":subreddit, "post time":posttime, "OP":poster, "Number of Comments":comments, "URL":commentsURL}
-        
-        return returnDict #returns a dictionary of all info
-        
-    def get_title(self, post): #gets title
-        title = post.find_element(By.CSS_SELECTOR, "p[class^= 'title']" )
-        return title.text
-        
-    def get_upvotes(self, post): #gets score
-        score = post.find_element(By.CSS_SELECTOR, "div[class^= 'score unvoted']" )
-        return score.text
-        
-    def get_subreddit(self, post): #gets subreddit
-        subreddit = post.find_element(By.CSS_SELECTOR, "a[class^= 'subreddit']" )
-        return subreddit.text
-    
-    def get_post_time(self, post): #gets posted time
-        posttime = post.find_element(By.CSS_SELECTOR, "time[class^= 'live-timestamp']" )
-        return posttime.text
-        
-    def get_OP(self, post): #gets OP
-        poster = post.find_element(By.CSS_SELECTOR, "a[class^= 'author']" )
-        return poster.text
-    
-    def get_comment_number(self, post): #gets number of comments
-        comments = post.find_element(By.CSS_SELECTOR, "a[class*= 'comments']" )
-        return comments.text   
-
-    def get_comments_URL(self, post): #goes to comments on post given
-        comments = post.find_element(By.CSS_SELECTOR, "a[data-event-action^='comments']")
-        comments.click()
-        WebDriverWait(self.driver,10).until(EC.url_contains('comments'))
-        return self.driver.current_url
-
-class Pandas_DataFrame(): 
-    
-    def initialize(self,data): #creates a Data Frame out of the Reddit posts
-        self.dataFrame = pd.DataFrame(data)
-        
-    def write_to_csv(self): #writes Data Frame to file
+    def write_to_csv(self):
         self.dataFrame.to_csv(r"C:\Users\Ethan\Documents\Coding\Web Scraper\Post Data\postdata.csv")
+
+
+
+class HTML_Parser():
+    
+    def initialize(self, HTML):
+        self.HTML = BeautifulSoup(HTML)
+        
+    def get_attribute(self, CSS_Attribute):
+        attribute = self.HTML.select(CSS_Attribute)
+        return attribute
+        
+class Reddit_Post(HTML_Parser):
+    
+    def create_post_dictionary(self):
+        self.title = self.get_attribute("[class^= 'title']")
+        self.score = self.get_attribute("[class^= 'score unvoted']")
+        self.subreddit = self.get_attribute("[class^= 'subreddit']")
+        self.posttime = self.get_attribute("[class^= 'live-timestamp']")
+        self.poster = self.get_attribute("[class^= 'author']")
+        self.comments = self.get_attribute("[class*= 'comments']")
+        # self.commentsURL = self.get_post_comments_URL()
+        
+        return {'title':self.title, 'score':self.score, 'subreddit':self.subreddit, 
+                'posttime':self.posttime, 'OP':self.poster, 'comments':self.comments
+                # , 'URL':self.commentsURL
+                }
+            
+    # def get_post_comments_URL(self):
+    #     URLparser = HTML_Parser()
+    #     URLparser.initialize(self.comments)
+    #     URLparser.HTML.find('a',href=True)
+        
+        
+        
