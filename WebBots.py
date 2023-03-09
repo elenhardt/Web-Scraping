@@ -4,13 +4,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
 from bs4 import BeautifulSoup
-import soupsieve as sv
-
+import os.path
 import pandas as pd
-import numpy as np 
-
 
 
 
@@ -19,8 +15,6 @@ import numpy as np
 #Create class/methods to parse through and create comments.
 #Change all implicit waits to expected conditions
 #Find more efficient way to get post comment URL's
-
-
 
 
 
@@ -41,9 +35,7 @@ class Chrome_Browser():
     def get_page_HTML(self):
         self.HTML = self.driver.page_source
     
-    def get_webelement_HTML(self, webelement):
-        webelementHTML = webelement.get_attribute('innerHTML')
-        return webelementHTML        
+    
     
     def tear_down(self): #discards driver
         self.driver.quit()
@@ -74,49 +66,21 @@ class Reddit(Chrome_Browser):
                 
 
         
-
-    
-
-    # def get_comments(self, commentssection):
-    #     comments = commentssection.find_elements(By.CSS_SELECTOR, "div[id^='thing']") 
-    #     return comments #returns list of comments
+class Reddit_Scraper(Reddit): #Reddit Scraper class
+            
+    def get_webelement_HTML(self,element): #gets HTML of selenium web element
+        webelementHTML = element.get_attribute("innerHTML")
+        return webelementHTML        
         
-class Reddit_Scraper(): 
-    
-    def initialize(self):
-        self.browser = Reddit()
-        self.browser.initialize()
-        
-    def goto_subreddit(self, subreddit):
-        self.browser.goto_site('https://old.reddit.com/r/' + subreddit + '/')
-        
-    def get_posts(self): #finds all posts on current page
-        self.posts2 = self.browser.driver.find_elements(By.CSS_SELECTOR, "div[class*='even  link']")
-        self.posts1 = self.browser.driver.find_elements(By.CSS_SELECTOR, "div[class*='odd  link']")
-        self.posts = self.posts2 + self.posts1
-    
-    def create_HTML_list(self):
-        self.HTMLlist = []
-        for post in self.posts:
-            self.HTMLlist.append(self.browser.get_webelement_HTML(post))
-  
-     
-    def get_pages(self, times): #gets this many pages worth of posts
-        returnlist = []
-        for i in range(times):
-            self.get_posts()
-            returnlist.append(self.create_HTML_list())
-            self.browser.click_next_page()
-        
-    def initialize_posts_list(self):
-        self.postslist = []
+    def initialize_lists(self): #initializes all primary lists for scraper
         self.parser = Reddit_Post()
         
-    def fill_posts_list(self):
-        for post in self.HTMLlist:
-            self.parser.initialize(post)
-            self.postslist.append(self.parser.create_post_dictionary())
-        
+    def get_posts(self): #finds all Non-AD posts on current page
+        posts2 = self.driver.find_elements(By.CSS_SELECTOR, "div[class*='even  link']")
+        posts1 = self.driver.find_elements(By.CSS_SELECTOR, "div[class*='odd  link']")
+        posts = posts1 + posts2
+        return posts
+
     
 
 class Pandas_DataFrame():
