@@ -61,9 +61,7 @@ class Reddit(Chrome_Browser):
         element = self.driver.find_element(By.CSS_SELECTOR, "a[rel$='next']")
         element.click()
         self.driver.implicitly_wait(2)
-        
-
-                
+                      
 
         
 class Reddit_Scraper(Reddit): #Reddit Scraper class
@@ -72,8 +70,7 @@ class Reddit_Scraper(Reddit): #Reddit Scraper class
         webelementHTML = element.get_attribute("innerHTML")
         return webelementHTML        
         
-    def initialize_lists(self): #initializes all primary lists for scraper
-        self.parser = Reddit_Post()
+        
         
     def get_posts(self): #finds all Non-AD posts on current page
         posts2 = self.driver.find_elements(By.CSS_SELECTOR, "div[class*='even  link']")
@@ -92,7 +89,6 @@ class Pandas_DataFrame():
         self.dataFrame.to_csv(r"C:\Users\Ethan\Documents\Coding\Web Scraper\Post Data\postdata.csv")
 
 
-
 class HTML_Parser():
     
     def initialize(self, HTML):
@@ -102,26 +98,71 @@ class HTML_Parser():
         attribute = self.HTML.select(CSS_Attribute)
         return attribute
         
-class Reddit_Post(HTML_Parser):
+class Reddit_Post(HTML_Parser): #allows for creation of Reddit Post Objec
     
-    def create_post_dictionary(self):
-        self.title = self.get_attribute("[class^= 'title']")
-        self.score = self.get_attribute("[class^= 'score unvoted']")
-        self.subreddit = self.get_attribute("[class^= 'subreddit']")
-        self.posttime = self.get_attribute("[class^= 'live-timestamp']")
-        self.poster = self.get_attribute("[class^= 'author']")
-        self.comments = self.get_attribute("[class*= 'comments']")
-        # self.commentsURL = self.get_post_comments_URL()
+    def create_post_dictionary(self): #creates a dictionary of Reddit Data
+        self.title = self.get_title()
+        self.score = self.get_score()
+        self.subreddit = self.get_subreddit()
+        self.posttime = self.get_posttime()
+        self.poster = self.get_poster()
+        self.comments = self.get_comments()
+        self.commentsURL = self.get_post_comments_URL()
         
         return {'title':self.title, 'score':self.score, 'subreddit':self.subreddit, 
                 'posttime':self.posttime, 'OP':self.poster, 'comments':self.comments
-                # , 'URL':self.commentsURL
+                , 'URL':self.commentsURL #returns a dictionary representing the reddit post
                 }
+
+    
+    def get_title(self):
+        title = self.HTML.find('p', class_='title').get_text()
+        return title
+    
+    def get_score(self):
+        returnvalue = self.HTML.find('div', class_='score unvoted')
+        return returnvalue.get('title')    
             
-    # def get_post_comments_URL(self):
-    #     URLparser = HTML_Parser()
-    #     URLparser.initialize(self.comments)
-    #     URLparser.HTML.find('a',href=True)
+    def get_subreddit(self):
+        returnvalue = self.HTML.find('a', class_='subreddit hover may-blank').get_text()
+        return returnvalue    
+            
+    def get_posttime(self):
+        returnvalue = self.HTML.find('time', class_='live-timestamp')
+        return returnvalue.get('title')
+            
+    def get_poster(self):
+        returnvalue = self.HTML.find('a', href=lambda href: href and 'user' in href)
+        return returnvalue.get('href')    
+            
+    def get_comments(self):
+        returnvalue = self.HTML.find('a', class_='bylink comments may-blank').get_text()
+        return returnvalue    
+            
+    def get_post_comments_URL(self): #gets the URL to go to posts comments
+        link = self.HTML.find('a', href=lambda href: href and 'comments' in href)
+        return link.get('href')
         
+class Data_Tools():
+    
+    def initialize(self):
         
+        self.scraper = Reddit_Scraper()
+        self.HTMLlist = []
+        self.LoD = []
+        self.parser = Reddit_Post()
+        self.scraper.initialize()
+        
+    def posts_to_HTML(self, posts):
+        
+        for post in posts:
+            self.HTMLlist.append(self.scraper.get_webelement_HTML(post))
+            
+    def create_LoD(self):
+        
+        self.posts_to_HTML(self.scraper.get_posts())
+        
+        for post in self.HTMLlist:
+            self.parser.initialize(post)
+            self.LoD.append(self.parser.create_post_dictionary())
         
